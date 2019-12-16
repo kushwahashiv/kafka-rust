@@ -12,7 +12,7 @@ mod kafka_consumer;
 mod kafka_producer;
 mod logger;
 
-use crate::db::models::{Balance, Account};
+use crate::db::models::{Account, Balance};
 
 use crate::db::Pool;
 use crate::kafka_consumer::{consume, ValuesProcessor};
@@ -46,21 +46,17 @@ struct ProducerData {
 }
 
 fn handle_account(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
-    let uuid = match &values[0] {
+    let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
-        _ => panic!("Not a fixed value of 16, while that was expected")
+        _ => panic!("Not an id, while that was expected")
     };
-    let type_ = match &values[1] {
-        (_a_type, Value::Enum(_index, v)) => v,
-        _ => panic!("Not an enum, while that was expected")
-    };
-    let cac = db::Account::get_account_by_id(conn, &uuid);
-    let key = uuid;
-    let producer_data = match cac.reason {
+    let account = db::Account::get_account_by_id(conn, &id);
+    let key = id;
+    let producer_data = match account {
         None => ProducerData {
             topic: "account_creation_confirmed",
             key,
-            values: acc_vec(&values, cac)
+            values: acc_vec(&values, account)
         },
         Some(v) => ProducerData {
             topic: "account_creation_failed",
@@ -71,32 +67,24 @@ fn handle_account(values: &[(String, Value)], conn: &PgConnection, sender: &Send
     sender.send(producer_data).unwrap();
 }
 
-fn acc_vec(cac_values: &[(String, Value)], cac: Account) -> Vec<(&'static str, Value)> {
+fn acc_vec(cac_values: &[(String, Value)], account: Option<Account>) -> Vec<(&'static str, Value)> {
     let id = match cac_values[0] {
         (ref _id, Value::String(ref v)) => ("id", Value::String(v.clone())),
-        _ => panic!("Not a fixed value of 16, while that was expected")
+        _ => panic!("Not an id, while that was expected")
     };
-    let iban = match cac.iban {
-        Some(v) => ("iban", Value::String(v)),
-        None => panic!("No iban present in cac while expected because sending acc")
+    let (account_no, account_type) = match account {
+        Some(v) => (("account_type", Value::String(v.account_type)), ("account_no", Value::String(v.account_no))),
+        None => panic!("No account no present in cac while expected because sending account")
     };
-    let token = match cac.token {
-        Some(v) => ("token", Value::String(v)),
-        None => panic!("No token present in cac while expected because sending acc")
-    };
-    let tp = match cac_values[1] {
-        (ref _a_type, Value::Enum(ref i, ref v)) => ("a_type", Value::Enum(*i, v.clone())),
-        _ => panic!("Not a fixed value of 16, while that was expected")
-    };
-    vec![id, iban, token, tp]
+    vec![id, account_no, account_type]
 }
 
-fn fail_vec(cac_values: &[(String, Value)], reason: String) -> Vec<(&'static str, Value)> {
-    let id = match cac_values[0] {
+fn fail_vec(account_values: &[(String, Value)], _account: Account) -> Vec<(&'static str, Value)> {
+    let id = match account_values[0] {
         (ref _id, Value::String(ref v)) => ("id", Value::String(v.clone())),
-        _ => panic!("Not a fixed value of 16, while that was expected")
+        _ => panic!("Not an id, while that was expected")
     };
-    vec![id, ("reason", Value::String(reason))]
+    vec![id, ("message", Value::String(String::from("Account already exists")))]
 }
 
 struct BalanceContext {
@@ -111,25 +99,27 @@ impl ValuesProcessor for BalanceContext {
 }
 
 fn handle_balance(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
-    let uuid = match &values[0] {
+    let id = match &values[0] {
         (_id, Value::String(v)) => v.clone(),
-        _ => panic!("Not a fixed value of 16, while that was expected")
+        _ => panic!("Not a an id, while that was expected")
     };
-    let (cmt, b_from, b_to) = db::get_cmt(conn, uuid.clone(), values);
-    let key = uuid;
+    let (account, b_from, b_to) = db::Balance::get_money_transfer(conn, id.clone(), values);
+    let key = id;
     {
-        let producer_data = match cmt.reason {
-            None => ProducerData {
+        let producer_data: ProducerData;
+        if account.account_no.is_empty() {
+            producer_data = ProducerData {
                 topic: "money_transfer_confirmed",
                 key,
                 values: mtc_vec(values)
-            },
-            Some(v) => ProducerData {
+            }
+        } else {
+            producer_data = ProducerData {
                 topic: "money_transfer_failed",
                 key,
-                values: fail_vec(values, v)
+                values: fail_vec(values, account)
             }
-        };
+        }
         sender.send(producer_data).unwrap();
     }
     match b_from {
@@ -151,9 +141,9 @@ fn mtc_vec(cmt_values: &[(String, Value)]) -> Vec<(&'static str, Value)> {
 }
 
 fn send_bc(is_from: bool, cmt_values: &[(String, Value)], balance: Balance, sender: &Sender<ProducerData>) {
-    let iban_string = balance.iban;
-    let iban = ("iban", Value::String(iban_string.clone()));
-    let amount = ("new_balance", Value::Long(balance.amount));
+    let account_string = balance.account_no;
+    let account_no = ("account_no", Value::String(account_string.clone()));
+    let amount = ("new_balance", Value::Double(balance.amount));
     let changed_by = match cmt_values[2] {
         (ref _amount, Value::Long(ref v)) => {
             if is_from {
@@ -174,8 +164,8 @@ fn send_bc(is_from: bool, cmt_values: &[(String, Value)], balance: Balance, send
     };
     let producer_data = ProducerData {
         topic: "balance_changed",
-        key: iban_string,
-        values: vec![iban, amount, changed_by, from_to, description]
+        key: account_string,
+        values: vec![account_no, amount, changed_by, from_to, description]
     };
     sender.send(producer_data).unwrap();
 }

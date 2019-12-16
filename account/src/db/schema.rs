@@ -1,6 +1,7 @@
 table! {
     balance (id) {
         id -> Text,
+        account_no -> Text,
         amount -> Double,
         created_at -> Timestamp,
         updated_at -> Timestamp,
