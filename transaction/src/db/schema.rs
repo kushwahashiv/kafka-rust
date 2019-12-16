@@ -1,16 +1,16 @@
-table! {
-      transaction (id) {
-        id -> Text,
-        account_no -> Text,
-        amount -> Double,
-        new_balance -> Double,
-        account_type -> Text,
-        changed_by -> Text,
-        from_to -> Text,
-        description -> Text,
-        created_at -> Timestamp
-    }
-}
+// table! {
+//       transaction (id) {
+//         id -> Text,
+//         account_no -> Text,
+//         amount -> Double,
+//         new_balance -> Double,
+//         account_type -> Text,
+//         changed_by -> Text,
+//         from_to -> Text,
+//         description -> Text,
+//         created_at -> Timestamp
+//     }
+// }
 
 table! {
     balance (balance_id) {

@@ -36,7 +36,7 @@ impl Balance {
             .expect("Error saving new balance")
     }
 
-    pub fn get_balance_by_account_no(conn: &PgConnection, account_no: String) -> Option<Balance> {
+    pub fn get_balance_by_account_no(conn: &PgConnection, account_no: &str) -> Option<Balance> {
         balance::table
             .filter(balance::account_no.eq(account_no))
             .first::<Balance>(conn)
@@ -71,14 +71,6 @@ impl ConfirmedAccount {
         }
     }
 
-    pub fn get_confirmed_account(conn: &PgConnection, id: String) -> ConfirmedAccount {
-        match confirmed_account::table.find(id.clone()).first::<ConfirmedAccount>(conn).optional() {
-            Ok(Some(v)) => v,
-            Ok(None) => ConfirmedAccount::create_account(id, conn),
-            Err(e) => panic!("Error trying to get confirmed ccount creation with id: {:?} and error: {}", id, e)
-        }
-    }
-
     pub fn get_account_by_id(conn: &PgConnection, id: &str) -> Option<ConfirmedAccount> {
         confirmed_account::table
             .filter(confirmed_account::id.eq(id))
@@ -87,9 +79,17 @@ impl ConfirmedAccount {
             .unwrap()
     }
 
+    pub fn get_confirmed_account(conn: &PgConnection, id: String) -> ConfirmedAccount {
+        match confirmed_account::table.find(id.clone()).first::<ConfirmedAccount>(conn).optional() {
+            Ok(Some(v)) => v,
+            Ok(None) => ConfirmedAccount::create_account(id, conn),
+            Err(e) => panic!("Error trying to get confirmed ccount creation with id: {:?} and error: {}", id, e)
+        }
+    }
+
     pub fn create_account(id: String, conn: &PgConnection) -> ConfirmedAccount {
         let account = new_account();
-        let reason = match Balance::get_balance_by_account_no(conn, account) {
+        let reason = match Balance::get_balance_by_account_no(conn, &account) {
             Some(_v) => Option::from("generated account no already exists, try again"),
             None => None
         };
@@ -145,12 +145,12 @@ impl ConfirmedTransaction {
             _ => panic!("Not a string value, while that was expected")
         };
 
-        let (reason, b_from, b_to) = if invalid_from(from.clone()) {
+        let (reason, b_from, b_to) = if invalid_from(from) {
             (Option::from("from is invalid"), None, None)
         } else if from == to {
             (Option::from("from and to can't be same for transfer"), None, None)
         } else {
-            ConfirmedTransaction::transfer(conn, values, from.clone(), to.clone())
+            ConfirmedTransaction::transfer(conn, values, from, to)
         };
 
         let new_confirmed_account = ConfirmedTransaction::new(id, reason);
@@ -161,13 +161,13 @@ impl ConfirmedTransaction {
         (cmt, b_from, b_to)
     }
 
-    fn transfer(conn: &PgConnection, values: &[(String, Value)], from: String, to: String) -> (Option<&'static str>, Option<Balance>, Option<Balance>) {
+    fn transfer(conn: &PgConnection, values: &[(String, Value)], from: &str, to: &str) -> (Option<&'static str>, Option<Balance>, Option<Balance>) {
         let am = match values[2] {
             (ref _amount, Value::Double(ref v)) => v,
             _ => panic!("Not a Long value, while that was expected")
         };
         let (reason, b_from) = if valid_open_account(from) {
-            match Balance::get_balance_by_account_no(conn, from.clone()) {
+            match Balance::get_balance_by_account_no(conn, from) {
                 Some(v) => {
                     let b_from = match diesel::update(&v).set(balance::amount.eq(balance::amount - am)).get_result::<Balance>(conn) {
                         Ok(v) => Option::from(v),

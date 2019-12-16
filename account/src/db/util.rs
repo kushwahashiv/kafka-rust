@@ -30,7 +30,7 @@ fn get_check_nr(digits: &str) -> String {
     }
 }
 
-pub fn invalid_from(from: String) -> bool {
+pub fn invalid_from(from: &str) -> bool {
     if "cash" == from {
         false
     } else {
@@ -38,7 +38,7 @@ pub fn invalid_from(from: String) -> bool {
     }
 }
 
-pub fn valid_open_account(account: String) -> bool {
+pub fn valid_open_account(account: &str) -> bool {
     if account.len() != 18 {
         false
     } else {

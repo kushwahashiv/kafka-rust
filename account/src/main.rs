@@ -50,7 +50,7 @@ fn handle_account(values: &[(String, Value)], conn: &PgConnection, sender: &Send
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
     };
-    let account = db::ConfirmedAccount::get_account_by_id(conn, &id);
+    let account = db::ConfirmedAccount::get_confirmed_account(conn, id.clone());
     let key = id;
     let producer_data = match account.reason {
         None => ProducerData {
@@ -68,15 +68,13 @@ fn handle_account(values: &[(String, Value)], conn: &PgConnection, sender: &Send
     sender.send(producer_data).unwrap();
 }
 
-fn acc_vec(cac_values: &[(String, Value)], account: Option<ConfirmedAccount>) -> Vec<(&'static str, Value)> {
+fn acc_vec(cac_values: &[(String, Value)], account: ConfirmedAccount) -> Vec<(&'static str, Value)> {
     let id = match cac_values[0] {
         (ref _id, Value::String(ref v)) => ("id", Value::String(v.clone())),
         _ => panic!("Not an id, while that was expected")
     };
-    let (account_no, account_type) = match account {
-        Some(v) => (("account_no", Value::String(v.account_no)), ("account_type", Value::String(v.account_type))),
-        None => panic!("No account no present in cac while expected because sending account")
-    };
+    let account_no = ("account_no", Value::String(account.account_no));
+    let account_type = ("account_type", Value::String(account.account_type));
     vec![id, account_no, account_type]
 }
 
