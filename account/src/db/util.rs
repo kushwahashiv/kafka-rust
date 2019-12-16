@@ -29,3 +29,19 @@ fn get_check_nr(digits: &str) -> String {
         check_nr
     }
 }
+
+pub fn invalid_from(from: String) -> bool {
+    if "cash" == from {
+        false
+    } else {
+        !valid_open_account(from)
+    }
+}
+
+pub fn valid_open_account(account: String) -> bool {
+    if account.len() != 18 {
+        false
+    } else {
+        account == open_account(&account[8..])
+    }
+}

@@ -14,7 +14,6 @@ mod logger;
 
 use crate::db::models::{Balance, Cac};
 
-use crate::db::util::get_id;
 use crate::db::Pool;
 use crate::kafka_consumer::{consume, ValuesProcessor};
 use crate::kafka_producer::get_producer;
