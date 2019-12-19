@@ -21,8 +21,6 @@ uuid = { version = "0.8.1", features = ["v4"] }
 schema_registry_converter = "1.1.0"
 rocket = { version = "0.4.2", features = ["tls"], default-features = false }
 rocket_contrib = "0.4.2"
-serde = "1.0.103"
-serde_derive = "1.0.103"
+serde = "1.0.104"
+serde_derive = "1.0.104"
 serde_json = "1.0.44"
-
-

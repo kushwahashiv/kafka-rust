@@ -1,61 +1,105 @@
+use chrono::{NaiveDateTime, Utc};
+use diesel::pg::PgConnection;
+
 use crate::db::schema::*;
-use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
+use crate::db::util::*;
+use avro_rs::types::Value;
+use diesel::{self, prelude::*};
+use log::warn;
 
 #[derive(Debug, PartialEq, Identifiable, Queryable, Insertable, Associations, AsChangeset)]
-#[primary_key(balance_id)]
-#[table_name = "balance"]
-pub struct Balance {
-    pub balance_id: i32,
-    pub iban: String,
-    pub token: String,
-    pub amount: i64,
-    pub type_: String,
-    pub lmt: i64,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime
-}
-
-#[derive(Debug, PartialEq, Queryable, Insertable, Associations, AsChangeset)]
-#[table_name = "balance"]
-pub struct NewBalance<'a> {
-    pub iban: &'a str,
-    pub token: &'a str,
-    pub amount: i64,
-    pub type_: &'a str,
-    pub lmt: i64
-}
-
-#[derive(Clone, Debug, Queryable, Deserialize, Serialize)]
-pub struct Cac {
-    pub uuid: String,
-    pub iban: Option<String>,
-    pub token: Option<String>,
-    pub type_: Option<String>,
-    pub reason: Option<String>,
+#[primary_key(id)]
+#[table_name = "transactions"]
+pub struct Transactions {
+    pub id: String,
+    pub account_no: String,
+    pub amount: f64,
+    pub new_balance: f64,
+    pub account_type: String,
+    pub changed_by: String,
+    pub from_to: String,
+    pub description: String,
     pub created_at: NaiveDateTime
 }
 
-#[derive(Debug, PartialEq, Queryable, Insertable, Associations, AsChangeset)]
-#[table_name = "cacr"]
-pub struct NewCac<'a> {
-    pub uuid: String,
-    pub iban: Option<&'a str>,
-    pub token: Option<&'a str>,
-    pub type_: Option<&'a str>,
-    pub reason: Option<&'a str>
+impl Transactions {
+    pub fn new(account_no: String) -> Self {
+        let now = Utc::now().naive_utc();
+
+        Self {
+            id: get_id(),
+            account_no: account_no,
+            amount: 0.0,
+            new_balance: 0.0,
+            account_type: String::new(),
+            changed_by: String::new(),
+            from_to: String::new(),
+            description: String::new(),
+            created_at: now
+        }
+    }
+
+    pub fn find_transaction_by_id(conn: &PgConnection, id: &str) -> Option<Transactions> {
+        transactions::table
+            .filter(transactions::id.eq(id))
+            .first::<Transactions>(conn)
+            .optional()
+            .unwrap()
+    }
+
+    pub fn find_transactions_by_account_no(conn: &PgConnection, account_no: &str) -> Option<Transactions> {
+        transactions::table
+            .filter(transactions::account_no.eq(account_no))
+            .first::<Transactions>(conn)
+            .optional()
+            .unwrap()
+    }
+
+    pub fn find_all_last_transactions(conn: &PgConnection) -> Option<Vec<Transactions>> {
+        transactions::table.load::<Transactions>(conn).optional().unwrap()
+    }
 }
 
-#[derive(Clone, Debug, Queryable, Deserialize, Serialize)]
-pub struct Cmt {
-    pub uuid: String,
-    pub reason: Option<String>,
+#[derive(Debug, PartialEq, Identifiable, Queryable, Insertable, Associations, AsChangeset)]
+#[primary_key(id)]
+#[table_name = "account"]
+pub struct Account {
+    pub id: String,
+    pub username: String,
+    pub password: String,
     pub created_at: NaiveDateTime
 }
 
-#[derive(Debug, PartialEq, Queryable, Insertable, Associations, AsChangeset)]
-#[table_name = "cmtr"]
-pub struct NewCmt<'a> {
-    pub uuid: String,
-    pub reason: Option<&'a str>
+impl Account {
+    pub fn new(username: String, password: String, conn: &PgConnection) -> Self {
+        let now = Utc::now().naive_utc();
+
+        Self {
+            id: get_id(),
+            username: username,
+            password: password,
+            created_at: now
+        }
+    }
+
+    pub fn find_account_by_username(username: &str, conn: &PgConnection) -> Option<Account> {
+        account::table.filter(account::username.eq(username)).first::<Account>(conn).optional().unwrap()
+    }
+
+    pub fn insert_account(acc: Account, conn: &PgConnection) -> Account {
+        diesel::insert_into(account::table)
+            .values(&acc)
+            .get_result(conn)
+            .expect("Error saving new account")
+    }
+
+    pub fn get_account(username: String, password: String, conn: &PgConnection) -> Account {
+        match Account::find_account_by_username(&username, &conn) {
+            Some(v) => v,
+            None => Account::insert_account(Account::new(username, password, &conn), &conn)
+        }
+    }
 }
+
+// create-money-transfer
+// money-transfer
