@@ -28,14 +28,14 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
-struct AccountContext {
+struct CacContext {
     sender: Sender<ProducerData>,
     pool: Pool
 }
 
-impl ValuesProcessor for AccountContext {
+impl ValuesProcessor for CacContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_account(values, &self.pool.get().unwrap(), &self.sender)
+        handle_cac(values, &self.pool.get().unwrap(), &self.sender)
     }
 }
 
@@ -45,18 +45,22 @@ struct ProducerData {
     values: Vec<(&'static str, Value)>
 }
 
-fn handle_account(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
+fn handle_cac(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
     };
-    let account = db::ConfirmedAccount::get_confirmed_account(conn, id.clone());
-    let key = id;
-    let producer_data = match account.reason {
+    let type_ = match &values[1] {
+        (_type, Value::String(v)) => v.clone(),
+        _ => panic!("Not an enum, while that was expected")
+    };
+    let cac = db::ConfirmedAccount::get_cac(id.clone(), type_, conn);
+    let key = id.clone();
+    let producer_data = match cac.reason {
         None => ProducerData {
             topic: "account_creation_confirmed",
             key,
-            values: acc_vec(&values, account)
+            values: acc_vec(&values, cac)
         },
         Some(v) => ProducerData {
             topic: "account_creation_failed",
@@ -68,14 +72,15 @@ fn handle_account(values: &[(String, Value)], conn: &PgConnection, sender: &Send
     sender.send(producer_data).unwrap();
 }
 
-fn acc_vec(cac_values: &[(String, Value)], account: ConfirmedAccount) -> Vec<(&'static str, Value)> {
+fn acc_vec(cac_values: &[(String, Value)], cac: ConfirmedAccount) -> Vec<(&'static str, Value)> {
     let id = match cac_values[0] {
         (ref _id, Value::String(ref v)) => ("id", Value::String(v.clone())),
         _ => panic!("Not an id, while that was expected")
     };
-    let account_no = ("account_no", Value::String(account.account_no));
-    let account_type = ("account_type", Value::String(account.account_type));
-    vec![id, account_no, account_type]
+    let token = ("token", Value::String(cac.token));
+    let account_no = ("account_no", Value::String(cac.account_no));
+    let account_type = ("account_type", Value::String(cac.account_type));
+    vec![id, account_no, token, account_type]
 }
 
 fn fail_vec(cac_values: &[(String, Value)], reason: String) -> Vec<(&'static str, Value)> {
@@ -86,26 +91,26 @@ fn fail_vec(cac_values: &[(String, Value)], reason: String) -> Vec<(&'static str
     vec![id, ("reason", Value::String(reason))]
 }
 
-struct BalanceContext {
+struct CmtContext {
     sender: Sender<ProducerData>,
     pool: Pool
 }
 
-impl ValuesProcessor for BalanceContext {
+impl ValuesProcessor for CmtContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_balance(values, &self.pool.get().unwrap(), &self.sender)
+        handle_cmt(values, &self.pool.get().unwrap(), &self.sender)
     }
 }
 
-fn handle_balance(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
+fn handle_cmt(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(v)) => v.clone(),
         _ => panic!("Not a an id, while that was expected")
     };
-    let (account, b_from, b_to) = db::ConfirmedTransaction::get_confirmed_transaction(conn, id.clone(), values);
+    let (cmt, b_from, b_to) = db::ConfirmedTransaction::get_cmt(id.clone(), values, conn);
     let key = id;
     {
-        let producer_data = match account.reason {
+        let producer_data = match cmt.reason {
             None => ProducerData {
                 topic: "money_transfer_confirmed",
                 key,
@@ -180,7 +185,7 @@ fn cac<'r>(req: &'r Request, _data: Data) -> Outcome<'r> {
     let (sender, _) = mpsc::channel();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = db::connect(&database_url);
-    handle_account(&data[..], &pool.get().unwrap(), &sender);
+    handle_cac(&data[..], &pool.get().unwrap(), &sender);
 
     Outcome::from(req, String::from("ss"))
 }
@@ -198,7 +203,7 @@ fn cmt<'r>(req: &'r Request, _data: Data) -> Outcome<'r> {
     let (sender, _) = mpsc::channel();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = db::connect(&database_url);
-    handle_balance(&data[..], &pool.get().unwrap(), &sender);
+    handle_cmt(&data[..], &pool.get().unwrap(), &sender);
 
     Outcome::from(req, String::from("data"))
 }
@@ -244,7 +249,7 @@ fn main() {
     let cac_handle = consume(
         group_id,
         "confirm_account_creation",
-        Box::from(AccountContext {
+        Box::from(CacContext {
             sender: sender.clone(),
             pool: pool.clone()
         })
@@ -252,7 +257,7 @@ fn main() {
     let cmt_handle = consume(
         group_id,
         "confirm_money_transfer",
-        Box::from(BalanceContext {
+        Box::from(CmtContext {
             sender: sender.clone(),
             pool: pool.clone()
         })

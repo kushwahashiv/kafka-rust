@@ -30,7 +30,7 @@ fn get_check_nr(digits: &str) -> String {
     }
 }
 
-pub fn invalid_from(from: &str) -> bool {
+pub fn invalid_from(from: String) -> bool {
     if "cash" == from {
         false
     } else {
@@ -38,10 +38,19 @@ pub fn invalid_from(from: &str) -> bool {
     }
 }
 
-pub fn valid_open_account(account: &str) -> bool {
+pub fn valid_open_account(account: String) -> bool {
     if account.len() != 18 {
         false
     } else {
         account == open_account(&account[8..])
     }
+}
+
+pub fn new_token() -> String {
+    let mut rng = thread_rng();
+    let mut digits = String::new();
+    for _i in 0..=19 {
+        digits.push_str(rng.gen_range(0, 10).to_string().as_ref());
+    }
+    digits
 }

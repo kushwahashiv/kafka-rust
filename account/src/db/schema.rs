@@ -2,7 +2,10 @@ table! {
     balance (id) {
         id -> Text,
         account_no -> Text,
+        token -> Text,
+        account_type -> Text,
         amount -> Double,
+        limit -> Double,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -12,6 +15,7 @@ table! {
     confirmed_account (id) {
         id -> Text,
         account_no -> Text,
+        token -> Text,
         account_type -> Text,
         reason -> Nullable<Text>,
         created_at -> Timestamp,

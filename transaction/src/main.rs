@@ -1,9 +1,19 @@
+#![feature(proc_macro_hygiene, decl_macro, vec_remove_item, try_trait)]
+#![recursion_limit = "512"]
+
 extern crate openssl;
 #[macro_use]
 extern crate diesel;
 extern crate log;
+#[macro_use]
 extern crate rocket;
+#[macro_use]
+extern crate diesel_migrations;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
+
 use dotenv::dotenv;
 use std::env;
 
@@ -12,7 +22,7 @@ mod kafka_consumer;
 mod kafka_producer;
 mod logger;
 
-// use crate::db::models::{Acc, ConfirmedAccount};
+use crate::db::models::{Account, Transactions};
 
 use crate::db::Pool;
 use crate::kafka_consumer::{consume, ValuesProcessor};
@@ -20,16 +30,169 @@ use crate::kafka_producer::get_producer;
 use crate::logger::setup_logger;
 use avro_rs::types::Value;
 use chrono::Utc;
+use db::DbConn;
 use diesel::pg::PgConnection;
 use log::{error, info};
+use rocket::handler::Outcome;
+use rocket::http::Method::*;
+use rocket::{Data, Request, Route};
+use rocket_contrib::json::Json;
 use schema_registry_converter::schema_registry::SubjectNameStrategy;
 use std::collections::HashMap;
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 
-#[macro_use]
-extern crate diesel_migrations;
+struct ProducerData {
+    topic: &'static str,
+    key: String,
+    values: Vec<(&'static str, Value)>
+}
+
+struct AccContext {
+    sender: SyncSender<ProducerData>,
+    pool: Pool
+}
+
+impl ValuesProcessor for AccContext {
+    fn process(&mut self, values: &[(String, Value)]) {
+        handle_acc(values, &self.pool.get().unwrap(), &self.sender)
+    }
+}
+
+fn handle_acc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+    let id = match &values[0] {
+        (_id, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an id, while that was expected")
+    };
+    let account_no = match &values[1] {
+        (_account_no, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not account no, while that was expected")
+    };
+    let token = match &values[2] {
+        (_token, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not account no, while that was expected")
+    };
+    let account_type = match &values[3] {
+        (_account_type, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an account type, while that was expected")
+    };
+    // sender.send(producer_data).unwrap();
+}
+
+struct AcfContext {
+    sender: SyncSender<ProducerData>,
+    pool: Pool
+}
+
+impl ValuesProcessor for AcfContext {
+    fn process(&mut self, values: &[(String, Value)]) {
+        handle_acf(values, &self.pool.get().unwrap(), &self.sender)
+    }
+}
+
+fn handle_acf(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+    let id = match &values[0] {
+        (_id, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an id, while that was expected")
+    };
+    // sender.send(producer_data).unwrap();
+}
+
+struct MtcContext {
+    sender: SyncSender<ProducerData>,
+    pool: Pool
+}
+
+impl ValuesProcessor for MtcContext {
+    fn process(&mut self, values: &[(String, Value)]) {
+        handle_mtc(values, &self.pool.get().unwrap(), &self.sender)
+    }
+}
+
+fn handle_mtc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+    let id = match &values[0] {
+        (_id, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an id, while that was expected")
+    };
+    // sender.send(producer_data).unwrap();
+}
+
+struct MtfContext {
+    sender: SyncSender<ProducerData>,
+    pool: Pool
+}
+
+impl ValuesProcessor for MtfContext {
+    fn process(&mut self, values: &[(String, Value)]) {
+        handle_mtc(values, &self.pool.get().unwrap(), &self.sender)
+    }
+}
+
+fn handle_mtf(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+    let id = match &values[0] {
+        (_id, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an id, while that was expected")
+    };
+    // sender.send(producer_data).unwrap();
+}
+
+struct BcContext {
+    sender: SyncSender<ProducerData>,
+    pool: Pool
+}
+
+impl ValuesProcessor for BcContext {
+    fn process(&mut self, values: &[(String, Value)]) {
+        handle_bc(values, &self.pool.get().unwrap(), &self.sender)
+    }
+}
+
+fn handle_bc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+    let id = match &values[0] {
+        (_id, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an id, while that was expected")
+    };
+    // sender.send(producer_data).unwrap();
+}
+
+// https://github.com/SergioBenitez/Rocket/issues/714
+use std::ops::Deref;
+use rocket::State;
+struct JobSender(SyncSender<ProducerData>);
+impl Deref for JobSender {
+    type Target = mpsc::SyncSender<ProducerData>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Deserialize)]
+#[allow(non_snake_case)]
+struct LoginData {
+    username: String,
+    password: String
+}
+
+#[post("/login", data = "<data>")]
+fn login(data: Json<LoginData>, conn: DbConn, sender: State<JobSender>) -> &'static str {
+    let data: LoginData = data.into_inner();
+    let account: Account = db::Account::get_account(data.username, data.password, &conn);
+    let key = account.id.clone();
+
+    let id = ("id", Value::String(key.clone()));
+    let username = ("username", Value::String(account.username));
+    let password = ("password", Value::String(account.password));
+
+    let producer_data = ProducerData {
+        topic: "confirm_account_creation",
+        key,
+        values: vec![id, username, password]
+    };
+
+    sender.try_send(producer_data).unwrap();
+    "done"
+}
 
 embed_migrations!("./migrations");
 
@@ -45,39 +208,67 @@ mod migrations {
 fn main() {
     setup_logger(None);
     let group_id = "account";
-    // let (sender, receiver) = mpsc::channel();
-    // thread::spawn(move || send_loop(&receiver));
+    let (tx, rx) = mpsc::sync_channel(1);
+    thread::spawn(move || send_loop(&rx));
 
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = db::connect(&database_url);
+    let pool = db::init_pool(&database_url);
     migrations::run_migrations(pool.clone());
-    /*launch_rocket(pool.clone());
 
-    let cac_handle = consume(
+    rocket::ignite()
+    .mount("/login", routes![login])
+    .manage(pool.clone())
+    .manage(JobSender(tx.clone()))
+    .launch();
+
+    log::set_max_level(log::LevelFilter::max());
+
+    let acc_handle = consume(
         group_id,
-        "confirm_account_creation",
-        Box::from(AccountContext {
-            sender: sender.clone(),
+        "account_creation_confirmed",
+        Box::from(AccContext {
+            sender: tx.clone(),
             pool: pool.clone()
         })
     );
-    let cmt_handle = consume(
+    let acf_handle = consume(
         group_id,
-        "confirm_money_transfer",
-        Box::from(BalanceContext {
-            sender: sender.clone(),
+        "account_creation_failed",
+        Box::from(AcfContext {
+            sender: tx.clone(),
             pool: pool.clone()
         })
     );
-    cac_handle.join().expect_err("Error closing cac handler");
-    cmt_handle.join().expect_err("Error closing cmt handler");*/
-}
-
-struct ProducerData {
-    topic: &'static str,
-    key: String,
-    values: Vec<(&'static str, Value)>
+    let mtc_handle = consume(
+        group_id,
+        "money_transfer_confirmed",
+        Box::from(MtcContext {
+            sender: tx.clone(),
+            pool: pool.clone()
+        })
+    );
+    let mtf_handle = consume(
+        group_id,
+        "money_transfer_failed",
+        Box::from(MtfContext {
+            sender: tx.clone(),
+            pool: pool.clone()
+        })
+    );
+    let bc_handle = consume(
+        group_id,
+        "balance_changed",
+        Box::from(BcContext {
+            sender: tx.clone(),
+            pool: pool.clone()
+        })
+    );
+    acc_handle.join().expect_err("Error closing acc handler");
+    acf_handle.join().expect_err("Error closing acf handler");
+    mtc_handle.join().expect_err("Error closing mtc handler");
+    mtf_handle.join().expect_err("Error closing mtf handler");
+    bc_handle.join().expect_err("Error closing bc handler");
 }
 
 fn send_loop(receiver: &Receiver<ProducerData>) {

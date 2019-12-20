@@ -1,8 +1,8 @@
 use chrono::{NaiveDateTime, Utc};
-use diesel::pg::PgConnection;
 
 use crate::db::schema::*;
 use crate::db::util::*;
+use crate::db::DbConn;
 use avro_rs::types::Value;
 use diesel::{self, prelude::*};
 use log::warn;
@@ -39,24 +39,24 @@ impl Transactions {
         }
     }
 
-    pub fn find_transaction_by_id(conn: &PgConnection, id: &str) -> Option<Transactions> {
+    pub fn find_transaction_by_id(id: &str, conn: &DbConn) -> Option<Transactions> {
         transactions::table
             .filter(transactions::id.eq(id))
-            .first::<Transactions>(conn)
+            .first::<Transactions>(&**conn)
             .optional()
             .unwrap()
     }
 
-    pub fn find_transactions_by_account_no(conn: &PgConnection, account_no: &str) -> Option<Transactions> {
+    pub fn find_transactions_by_account_no(account_no: &str, conn: &DbConn) -> Option<Transactions> {
         transactions::table
             .filter(transactions::account_no.eq(account_no))
-            .first::<Transactions>(conn)
+            .first::<Transactions>(&**conn)
             .optional()
             .unwrap()
     }
 
-    pub fn find_all_last_transactions(conn: &PgConnection) -> Option<Vec<Transactions>> {
-        transactions::table.load::<Transactions>(conn).optional().unwrap()
+    pub fn find_all_last_transactions(conn: &DbConn) -> Option<Vec<Transactions>> {
+        transactions::table.load::<Transactions>(&**conn).optional().unwrap()
     }
 }
 
@@ -71,7 +71,7 @@ pub struct Account {
 }
 
 impl Account {
-    pub fn new(username: String, password: String, conn: &PgConnection) -> Self {
+    pub fn new(username: String, password: String) -> Self {
         let now = Utc::now().naive_utc();
 
         Self {
@@ -82,21 +82,25 @@ impl Account {
         }
     }
 
-    pub fn find_account_by_username(username: &str, conn: &PgConnection) -> Option<Account> {
-        account::table.filter(account::username.eq(username)).first::<Account>(conn).optional().unwrap()
+    pub fn find_account_by_username(username: &str, conn: &DbConn) -> Option<Account> {
+        account::table
+            .filter(account::username.eq(username))
+            .first::<Account>(&**conn)
+            .optional()
+            .unwrap()
     }
 
-    pub fn insert_account(acc: Account, conn: &PgConnection) -> Account {
+    pub fn insert_account(acc: Account, conn: &DbConn) -> Account {
         diesel::insert_into(account::table)
             .values(&acc)
-            .get_result(conn)
+            .get_result(&**conn)
             .expect("Error saving new account")
     }
 
-    pub fn get_account(username: String, password: String, conn: &PgConnection) -> Account {
-        match Account::find_account_by_username(&username, &conn) {
+    pub fn get_account(username: String, password: String, conn: &DbConn) -> Account {
+        match Account::find_account_by_username(&username, conn) {
             Some(v) => v,
-            None => Account::insert_account(Account::new(username, password, &conn), &conn)
+            None => Account::insert_account(Account::new(username, password), &conn)
         }
     }
 }
