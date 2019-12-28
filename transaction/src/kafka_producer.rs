@@ -33,7 +33,7 @@ pub fn get_producer() -> AvroProducer {
     };
     let schema_registry_url = match env::var("SCHEMA_REGISTRY_URL") {
         Ok(val) => val,
-        Err(_e) => "http://localhost:8082".to_string()
+        Err(_e) => "127.0.0.1:8081".to_string()
     };
     let producer = match Producer::from_hosts(brokers)
         .with_ack_timeout(Duration::from_secs(1))

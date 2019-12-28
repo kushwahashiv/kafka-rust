@@ -16,7 +16,7 @@ pub fn consume(group_id: &'static str, topic: &'static str, mut values_processor
     };
     let schema_registry_url = match env::var("SCHEMA_REGISTRY_URL") {
         Ok(val) => val,
-        Err(_e) => "http://localhost:8082".to_string()
+        Err(_e) => "127.0.0.1:8081".to_string()
     };
     thread::spawn(move || {
         let mut consumer = get_consumer(brokers, group_id, topic);
