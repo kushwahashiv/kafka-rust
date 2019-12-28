@@ -5,7 +5,7 @@ table! {
         token -> Text,
         account_type -> Text,
         amount -> Double,
-        limit -> Double,
+        limits -> Double,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

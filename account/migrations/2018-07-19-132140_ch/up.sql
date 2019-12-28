@@ -4,7 +4,7 @@ CREATE TABLE balance (
  token TEXT,
  account_type TEXT,
  amount REAL,
- limit REAL,
+ limits REAL,
  updated_at TIMESTAMP,
  created_at TIMESTAMP NOT NULL
 );

@@ -16,7 +16,7 @@ pub struct Balance {
     pub token: String,
     pub account_type: String,
     pub amount: f64,
-    pub limit: f64,
+    pub limits: f64,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime
 }
@@ -31,7 +31,7 @@ impl Balance {
             token: token,
             account_type: tp,
             amount: 0.0,
-            limit: -50000.0,
+            limits: -50000.0,
             updated_at: now,
             created_at: now
         };
