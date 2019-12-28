@@ -8,12 +8,12 @@ CREATE TABLE transactions (
  from_to TEXT,
  direction TEXT,
  description TEXT,
- created_at TIMESTAMP NOT NULL
+ created_at TIMESTAMP
 );
 
 create table account(
   id TEXT NOT NULL PRIMARY KEY,
   username TEXT,
   password TEXT,
-  created_at -> Timestamp
+  created_at TIMESTAMP
 );
