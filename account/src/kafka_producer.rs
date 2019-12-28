@@ -29,11 +29,11 @@ impl AvroProducer {
 pub fn get_producer() -> AvroProducer {
     let brokers = match env::var("KAFKA_BROKERS") {
         Ok(val) => val.split(',').map(String::from).collect(),
-        Err(_e) => vec!["http://localhost:19092".to_string()]
+        Err(_e) => vec!["http://localhost:9092".to_string()]
     };
     let schema_registry_url = match env::var("SCHEMA_REGISTRY_URL") {
         Ok(val) => val,
-        Err(_e) => "http://localhost:18081".to_string()
+        Err(_e) => "http://localhost:8082".to_string()
     };
     let producer = match Producer::from_hosts(brokers)
         .with_ack_timeout(Duration::from_secs(1))

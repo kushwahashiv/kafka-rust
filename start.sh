@@ -3,7 +3,7 @@ docker-compose -f docker-bank.yml up -d --build
 
 docker-compose ps
 
- confluent platform @ http://localhost:9021/
+confluent platform @ http://localhost:9021/
 
 topics:
 

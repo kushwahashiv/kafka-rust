@@ -12,11 +12,11 @@ pub trait ValuesProcessor {
 pub fn consume(group_id: &'static str, topic: &'static str, mut values_processor: Box<dyn ValuesProcessor + Send>) -> JoinHandle<()> {
     let brokers = match env::var("KAFKA_BROKERS") {
         Ok(val) => val.split(',').map(String::from).collect(),
-        Err(_e) => vec!["http://localhost:19092".to_string()]
+        Err(_e) => vec!["http://localhost:9092".to_string()]
     };
     let schema_registry_url = match env::var("SCHEMA_REGISTRY_URL") {
         Ok(val) => val,
-        Err(_e) => "http://localhost:18081".to_string()
+        Err(_e) => "http://localhost:8082".to_string()
     };
     thread::spawn(move || {
         let mut consumer = get_consumer(brokers, group_id, topic);
