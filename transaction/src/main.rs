@@ -37,6 +37,7 @@ use rocket::handler::Outcome;
 use rocket::http::Method::*;
 use rocket::{Data, Request, Route};
 use rocket_contrib::json::Json;
+use rocket_contrib::json::JsonValue;
 use schema_registry_converter::schema_registry::SubjectNameStrategy;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -157,8 +158,8 @@ fn handle_bc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSende
 }
 
 // https://github.com/SergioBenitez/Rocket/issues/714
-use std::ops::Deref;
 use rocket::State;
+use std::ops::Deref;
 struct JobSender(SyncSender<ProducerData>);
 impl Deref for JobSender {
     type Target = mpsc::SyncSender<ProducerData>;
@@ -167,7 +168,7 @@ impl Deref for JobSender {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[allow(non_snake_case)]
 struct LoginData {
     username: String,
@@ -175,14 +176,14 @@ struct LoginData {
 }
 
 #[post("/login", data = "<data>")]
-fn login(data: Json<LoginData>, conn: DbConn, sender: State<JobSender>) -> &'static str {
+fn login(data: Json<LoginData>, conn: DbConn, sender: State<JobSender>) -> Json<Account> {
     let data: LoginData = data.into_inner();
-    let account: Account = db::Account::get_account(data.username, data.password, &conn);
-    let key = account.id.clone();
+    let acc: Account = db::Account::get_account(data.username, data.password, &conn);
+    let key = acc.id.clone();
 
     let id = ("id", Value::String(key.clone()));
-    let username = ("username", Value::String(account.username));
-    let password = ("password", Value::String(account.password));
+    let username = ("username", Value::String(acc.username.clone()));
+    let password = ("password", Value::String(acc.password.clone()));
 
     let producer_data = ProducerData {
         topic: "confirm_account_creation",
@@ -191,7 +192,39 @@ fn login(data: Json<LoginData>, conn: DbConn, sender: State<JobSender>) -> &'sta
     };
 
     sender.try_send(producer_data).unwrap();
-    "done"
+    Json(acc)
+}
+
+#[derive(Deserialize, Serialize)]
+#[allow(non_snake_case)]
+struct MoneyTransfer {
+    id: String,
+    token: String,
+    amount: f64,
+    from: String,
+    to: String,
+    description: String
+}
+#[post("/tx", data = "<data>")]
+fn transact(data: Json<MoneyTransfer>, conn: DbConn, sender: State<JobSender>) -> Json<MoneyTransfer> {
+    let data: MoneyTransfer = data.into_inner();
+    let key = data.id.clone();
+
+    let id = ("id", Value::String(key.clone()));
+    let token = ("token", Value::String(data.token.clone()));
+    let amount = ("amount", Value::Double(data.amount.clone()));
+    let from = ("from", Value::String(data.from.clone()));
+    let to = ("to", Value::String(data.to.clone()));
+    let description = ("description", Value::String(data.description.clone()));
+
+    let producer_data = ProducerData {
+        topic: "confirm_money_transfer",
+        key,
+        values: vec![id, token, amount, from, to, description]
+    };
+
+    sender.try_send(producer_data).unwrap();
+    Json(data)
 }
 
 embed_migrations!("./migrations");
@@ -212,15 +245,15 @@ fn main() {
     thread::spawn(move || send_loop(&rx));
 
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var("DATABASE_URL_TRANSACTION").expect("DATABASE_URL_TRANSACTION must be set");
     let pool = db::init_pool(&database_url);
     migrations::run_migrations(pool.clone());
 
     rocket::ignite()
-    .mount("/login", routes![login])
-    .manage(pool.clone())
-    .manage(JobSender(tx.clone()))
-    .launch();
+        .mount("/", routes![login, transact])
+        .manage(pool.clone())
+        .manage(JobSender(tx.clone()))
+        .launch();
 
     log::set_max_level(log::LevelFilter::max());
 

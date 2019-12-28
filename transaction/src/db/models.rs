@@ -5,7 +5,6 @@ use crate::db::util::*;
 use crate::db::DbConn;
 use avro_rs::types::Value;
 use diesel::{self, prelude::*};
-use log::warn;
 
 #[derive(Debug, PartialEq, Identifiable, Queryable, Insertable, Associations, AsChangeset)]
 #[primary_key(id)]
@@ -18,6 +17,7 @@ pub struct Transactions {
     pub account_type: String,
     pub changed_by: String,
     pub from_to: String,
+    pub direction: String,
     pub description: String,
     pub created_at: NaiveDateTime
 }
@@ -34,6 +34,7 @@ impl Transactions {
             account_type: String::new(),
             changed_by: String::new(),
             from_to: String::new(),
+            direction: String::new(),
             description: String::new(),
             created_at: now
         }
@@ -60,7 +61,7 @@ impl Transactions {
     }
 }
 
-#[derive(Debug, PartialEq, Identifiable, Queryable, Insertable, Associations, AsChangeset)]
+#[derive(Debug, Serialize, PartialEq, Identifiable, Queryable, Insertable, Associations, AsChangeset)]
 #[primary_key(id)]
 #[table_name = "account"]
 pub struct Account {

@@ -183,7 +183,7 @@ fn cac<'r>(req: &'r Request, _data: Data) -> Outcome<'r> {
 
     let data = vec![id, type_];
     let (sender, _) = mpsc::channel();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var("DATABASE_URL_ACCOOUNT").expect("DATABASE_URL_ACCOOUNT must be set");
     let pool = db::connect(&database_url);
     handle_cac(&data[..], &pool.get().unwrap(), &sender);
 
@@ -201,7 +201,7 @@ fn cmt<'r>(req: &'r Request, _data: Data) -> Outcome<'r> {
 
     let data = vec![id, reason, created_at, from, to];
     let (sender, _) = mpsc::channel();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var("DATABASE_URL_ACCOOUNT").expect("DATABASE_URL_ACCOOUNT must be set");
     let pool = db::connect(&database_url);
     handle_cmt(&data[..], &pool.get().unwrap(), &sender);
 
@@ -241,7 +241,7 @@ fn main() {
     thread::spawn(move || send_loop(&receiver));
 
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var("DATABASE_URL_ACCOOUNT").expect("DATABASE_URL_ACCOOUNT must be set");
     let pool = db::connect(&database_url);
     migrations::run_migrations(pool.clone());
     launch_rocket(pool.clone());

@@ -7,6 +7,7 @@ table! {
         account_type -> Text,
         changed_by -> Text,
         from_to -> Text,
+        direction -> Text,
         description -> Text,
         created_at -> Timestamp,
     }
