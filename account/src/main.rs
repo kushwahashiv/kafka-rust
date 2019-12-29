@@ -30,8 +30,8 @@ use crate::kafka_producer::get_producer;
 use crate::logger::setup_logger;
 use avro_rs::types::Value;
 use chrono::Utc;
-use db::DbConn;
-use diesel::pg::PgConnection;
+// use diesel::pg::PgConnection;
+use crate::db::DbConn;
 use log::{error, info};
 use rocket::config::{Config, Environment, LoggingLevel};
 use rocket::http::Method::*;
@@ -50,7 +50,7 @@ struct CacContext {
 
 impl ValuesProcessor for CacContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_cac(values, &self.pool.get().unwrap(), &self.sender)
+        handle_cac(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
@@ -60,7 +60,7 @@ struct ProducerData {
     values: Vec<(&'static str, Value)>
 }
 
-fn handle_cac(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+fn handle_cac(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
@@ -113,11 +113,11 @@ struct CmtContext {
 
 impl ValuesProcessor for CmtContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_cmt(values, &self.pool.get().unwrap(), &self.sender)
+        handle_cmt(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
-fn handle_cmt(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+fn handle_cmt(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(v)) => v.clone(),
         _ => panic!("Not a an id, while that was expected")

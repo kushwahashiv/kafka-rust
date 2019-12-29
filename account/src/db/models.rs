@@ -1,9 +1,8 @@
-use chrono::{NaiveDateTime, Utc};
-use diesel::pg::PgConnection;
-
 use crate::db::schema::*;
 use crate::db::util::*;
+use crate::db::DbConn;
 use avro_rs::types::Value;
+use chrono::{NaiveDateTime, Utc};
 use diesel::{self, prelude::*};
 use log::warn;
 
@@ -22,7 +21,7 @@ pub struct Balance {
 }
 
 impl Balance {
-    pub fn new(account_no: String, token: String, tp: String, conn: &PgConnection) -> Self {
+    pub fn new(account_no: String, token: String, tp: String, conn: &DbConn) -> () {
         let now = Utc::now().naive_utc();
 
         let new_balance = Self {
@@ -37,15 +36,15 @@ impl Balance {
         };
 
         diesel::insert_into(balance::table)
-            .values(&new_balance)
-            .get_result(conn)
-            .expect("Error saving new balance")
+            .values(new_balance)
+            .execute(&**conn)
+            .expect("Error saving new balance");
     }
 
-    pub fn get_balance_by_account_no(conn: &PgConnection, account_no: String) -> Option<Balance> {
+    pub fn get_balance_by_account_no(account_no: String, conn: &DbConn) -> Option<Balance> {
         balance::table
             .filter(balance::account_no.eq(account_no))
-            .first::<Balance>(conn)
+            .first::<Balance>(&**conn)
             .optional()
             .unwrap()
     }
@@ -79,25 +78,25 @@ impl ConfirmedAccount {
         }
     }
 
-    pub fn get_account_by_id(conn: &PgConnection, id: String) -> Option<ConfirmedAccount> {
+    pub fn get_account_by_id(id: String, conn: &DbConn) -> Option<ConfirmedAccount> {
         confirmed_account::table
             .filter(confirmed_account::id.eq(id))
-            .first::<ConfirmedAccount>(conn)
+            .first::<ConfirmedAccount>(&**conn)
             .optional()
             .unwrap()
     }
 
-    pub fn get_cac(id: String, tp: String, conn: &PgConnection) -> ConfirmedAccount {
-        match confirmed_account::table.find(id.clone()).first::<ConfirmedAccount>(conn).optional() {
+    pub fn get_cac(id: String, tp: String, conn: &DbConn) -> ConfirmedAccount {
+        match confirmed_account::table.find(id.clone()).first::<ConfirmedAccount>(&**conn).optional() {
             Ok(Some(v)) => v,
             Ok(None) => ConfirmedAccount::create_cac(id, tp, conn),
             Err(e) => panic!("Error trying to get confirmed ccount creation with id: {:?} and error: {}", id, e)
         }
     }
 
-    pub fn create_cac(id: String, tp: String, conn: &PgConnection) -> ConfirmedAccount {
+    pub fn create_cac(id: String, tp: String, conn: &DbConn) -> ConfirmedAccount {
         let account_no = new_account();
-        let reason = match Balance::get_balance_by_account_no(conn, account_no.clone()) {
+        let reason = match Balance::get_balance_by_account_no(account_no.clone(), &conn) {
             Some(_v) => Option::from("generated account no already exists, try again"),
             None => None
         };
@@ -114,7 +113,7 @@ impl ConfirmedAccount {
 
         diesel::insert_into(confirmed_account::table)
             .values(&new_cac)
-            .get_result(conn)
+            .get_result(&**conn)
             .expect("Error saving new account")
     }
 }
@@ -139,15 +138,15 @@ impl ConfirmedTransaction {
         }
     }
 
-    pub fn get_cmt(id: String, values: &[(String, Value)], conn: &PgConnection) -> (ConfirmedTransaction, Option<Balance>, Option<Balance>) {
-        match confirmed_transaction::table.find(id.clone()).first::<ConfirmedTransaction>(conn).optional() {
+    pub fn get_cmt(id: String, values: &[(String, Value)], conn: &DbConn) -> (ConfirmedTransaction, Option<Balance>, Option<Balance>) {
+        match confirmed_transaction::table.find(id.clone()).first::<ConfirmedTransaction>(&**conn).optional() {
             Ok(Some(v)) => (v, None, None),
             Ok(None) => (ConfirmedTransaction::create_cmt(id, values, conn)),
             Err(e) => panic!("Error trying to get confirmed account with id: {:?} and error: {}", id, e)
         }
     }
 
-    pub fn create_cmt(id: String, values: &[(String, Value)], conn: &PgConnection) -> (ConfirmedTransaction, Option<Balance>, Option<Balance>) {
+    pub fn create_cmt(id: String, values: &[(String, Value)], conn: &DbConn) -> (ConfirmedTransaction, Option<Balance>, Option<Balance>) {
         let from = match values[3] {
             (ref _from, Value::String(ref v)) => v.clone(),
             _ => panic!("Not a string value, while that was expected")
@@ -168,20 +167,20 @@ impl ConfirmedTransaction {
         let new_confirmed_account = ConfirmedTransaction::new(id, reason.map(|s| s.to_string()));
         let cmt = diesel::insert_into(confirmed_transaction::table)
             .values(&new_confirmed_account)
-            .get_result(conn)
+            .get_result(&**conn)
             .expect("Error saving new balance");
         (cmt, b_from, b_to)
     }
 
-    fn transfer(values: &[(String, Value)], from: String, to: String, conn: &PgConnection) -> (Option<&'static str>, Option<Balance>, Option<Balance>) {
+    fn transfer(values: &[(String, Value)], from: String, to: String, conn: &DbConn) -> (Option<&'static str>, Option<Balance>, Option<Balance>) {
         let am = match values[2] {
             (ref _amount, Value::Double(ref v)) => v,
             _ => panic!("Not a Long value, while that was expected")
         };
         let (reason, b_from) = if valid_open_account(from.clone()) {
-            match Balance::get_balance_by_account_no(conn, from.clone()) {
+            match Balance::get_balance_by_account_no(from.clone(), &conn) {
                 Some(v) => {
-                    let b_from = match diesel::update(&v).set(balance::amount.eq(balance::amount - am)).get_result::<Balance>(conn) {
+                    let b_from = match diesel::update(&v).set(balance::amount.eq(balance::amount - am)).get_result::<Balance>(&**conn) {
                         Ok(v) => Option::from(v),
                         Err(e) => panic!("error updating balance with account no: {}, error: {}", to, e)
                     };
@@ -199,8 +198,8 @@ impl ConfirmedTransaction {
         let b_to = match reason {
             None => {
                 if valid_open_account(to.clone()) {
-                    match Balance::get_balance_by_account_no(conn, to.clone()) {
-                        Some(v) => match diesel::update(&v).set(balance::amount.eq(balance::amount + am)).get_result::<Balance>(conn) {
+                    match Balance::get_balance_by_account_no(to.clone(), conn) {
+                        Some(v) => match diesel::update(&v).set(balance::amount.eq(balance::amount + am)).get_result::<Balance>(&**conn) {
                             Ok(v) => Option::from(v),
                             Err(e) => panic!("error updating balance with account no: {}, error: {}", to.clone(), e)
                         },

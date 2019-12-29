@@ -3,9 +3,7 @@ pub mod schema;
 pub mod util;
 
 pub use self::models::*;
-use diesel::pg::PgConnection;
-use diesel::r2d2::ConnectionManager;
-use r2d2;
+use diesel::r2d2::{self, ConnectionManager};
 use rocket::{http::Status,
              request::{self, FromRequest},
              Outcome,
@@ -13,9 +11,9 @@ use rocket::{http::Status,
              State};
 use std::ops::Deref;
 
-pub type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
-
 type Connection = diesel::pg::PgConnection;
+pub type Pool = r2d2::Pool<ConnectionManager<Connection>>;
+
 pub struct DbConn(pub r2d2::PooledConnection<ConnectionManager<Connection>>);
 
 pub fn init_pool(database_url: &String) -> Pool {
