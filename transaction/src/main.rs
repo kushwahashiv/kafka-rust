@@ -11,7 +11,7 @@ extern crate rocket;
 extern crate diesel_migrations;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
+// #[macro_use]
 extern crate serde_json;
 
 use dotenv::dotenv;
@@ -29,15 +29,12 @@ use crate::kafka_consumer::{consume, ValuesProcessor};
 use crate::kafka_producer::get_producer;
 use crate::logger::setup_logger;
 use avro_rs::types::Value;
-use chrono::Utc;
+// use chrono::Utc;
 use db::DbConn;
 use diesel::pg::PgConnection;
 use log::{error, info};
-use rocket::handler::Outcome;
-use rocket::http::Method::*;
-use rocket::{Data, Request, Route};
+use rocket::config::{Config, Environment, LoggingLevel};
 use rocket_contrib::json::Json;
-use rocket_contrib::json::JsonValue;
 use schema_registry_converter::schema_registry::SubjectNameStrategy;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -238,9 +235,24 @@ mod migrations {
     }
 }
 
+fn launch_rocket(tx: &SyncSender<ProducerData>, p: &Pool) {
+    migrations::run_migrations(p.clone());
+    let config = Config::build(Environment::Development)
+        .address("127.0.0.1")
+        .port(8071)
+        .workers(8)
+        .log_level(LoggingLevel::Normal)
+        .unwrap();
+    let rocket = rocket::custom(config);
+    let rocket = rocket.mount("/v1", routes![login, transact]);
+    log::set_max_level(log::LevelFilter::max());
+    let rocket = rocket.manage(p.clone()).manage(JobSender(tx.clone()));
+    error!("Launch error {:#?}", rocket.launch());
+}
+
 fn main() {
     setup_logger(None);
-    
+
     let group_id = "account";
     let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(move || send_loop(&rx));
@@ -248,15 +260,7 @@ fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL_TRANSACTION").expect("DATABASE_URL_TRANSACTION must be set");
     let pool = db::init_pool(&database_url);
-    migrations::run_migrations(pool.clone());
-
-    let rocket = rocket::ignite();
-    let rocket = rocket.mount("/v1", routes![login, transact]);
-
-    log::set_max_level(log::LevelFilter::max());
-    let rocket = rocket.manage(pool.clone()).manage(JobSender(tx.clone()));
-
-    error!("Launch error {:#?}", rocket.launch());
+    launch_rocket(&tx, &pool.clone());
 
     let acc_handle = consume(
         group_id,

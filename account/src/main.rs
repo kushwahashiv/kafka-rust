@@ -1,9 +1,19 @@
+#![feature(proc_macro_hygiene, decl_macro, vec_remove_item, try_trait)]
+#![recursion_limit = "512"]
+
 extern crate openssl;
 #[macro_use]
 extern crate diesel;
 extern crate log;
+#[macro_use]
 extern crate rocket;
+#[macro_use]
+extern crate diesel_migrations;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
+
 use dotenv::dotenv;
 use std::env;
 
@@ -20,16 +30,21 @@ use crate::kafka_producer::get_producer;
 use crate::logger::setup_logger;
 use avro_rs::types::Value;
 use chrono::Utc;
+use db::DbConn;
 use diesel::pg::PgConnection;
 use log::{error, info};
+use rocket::config::{Config, Environment, LoggingLevel};
+use rocket::http::Method::*;
+use rocket_contrib::json::Json;
+use rocket_contrib::json::JsonValue;
 use schema_registry_converter::schema_registry::SubjectNameStrategy;
 use std::collections::HashMap;
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 
 struct CacContext {
-    sender: Sender<ProducerData>,
+    sender: SyncSender<ProducerData>,
     pool: Pool
 }
 
@@ -45,7 +60,7 @@ struct ProducerData {
     values: Vec<(&'static str, Value)>
 }
 
-fn handle_cac(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
+fn handle_cac(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
@@ -92,7 +107,7 @@ fn fail_vec(cac_values: &[(String, Value)], reason: String) -> Vec<(&'static str
 }
 
 struct CmtContext {
-    sender: Sender<ProducerData>,
+    sender: SyncSender<ProducerData>,
     pool: Pool
 }
 
@@ -102,7 +117,7 @@ impl ValuesProcessor for CmtContext {
     }
 }
 
-fn handle_cmt(values: &[(String, Value)], conn: &PgConnection, sender: &Sender<ProducerData>) {
+fn handle_cmt(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(v)) => v.clone(),
         _ => panic!("Not a an id, while that was expected")
@@ -142,7 +157,7 @@ fn mtc_vec(cmt_values: &[(String, Value)]) -> Vec<(&'static str, Value)> {
     vec![id]
 }
 
-fn send_bc(is_from: bool, cmt_values: &[(String, Value)], balance: Balance, sender: &Sender<ProducerData>) {
+fn send_bc(is_from: bool, cmt_values: &[(String, Value)], balance: Balance, sender: &SyncSender<ProducerData>) {
     let account_string = balance.account_no;
     let account_no = ("account_no", Value::String(account_string.clone()));
     let amount = ("new_balance", Value::Double(balance.amount));
@@ -172,59 +187,35 @@ fn send_bc(is_from: bool, cmt_values: &[(String, Value)], balance: Balance, send
     sender.send(producer_data).unwrap();
 }
 
-use rocket::handler::Outcome;
-use rocket::http::Method::*;
-use rocket::{Data, Request, Route};
-
-fn cac<'r>(req: &'r Request, _data: Data) -> Outcome<'r> {
-    let uuid = String::from("83cd1a69-7b8d-4496-a19e-003697a7281b"); // get_id();
-    let id = (String::from("uuid"), Value::String(uuid.clone()));
-    let type_ = (String::from("type_"), Value::Enum(0, String::from("AUTO")));
-
-    let data = vec![id, type_];
-    let (sender, _) = mpsc::channel();
-    let database_url = env::var("DATABASE_URL_ACCOOUNT").expect("DATABASE_URL_ACCOOUNT must be set");
-    let pool = db::connect(&database_url);
-    handle_cac(&data[..], &pool.get().unwrap(), &sender);
-
-    Outcome::from(req, String::from("ss"))
+#[derive(Deserialize, Serialize)]
+#[allow(non_snake_case)]
+struct LoginData {
+    username: String,
+    password: String
 }
 
-fn cmt<'r>(req: &'r Request, _data: Data) -> Outcome<'r> {
-    let now = Utc::now().naive_utc();
-    let uuid = String::from("83cd1a69-7b8d-4496-a19e-003697a7281b"); // get_id();
-    let id = (String::from("uuid"), Value::String(uuid.clone()));
-    let reason = (String::from("reason"), Value::String(String::from("cac")));
-    let created_at = (String::from("created_at"), Value::String(now.to_string()));
-    let from = (String::from("from"), Value::String(String::from("from")));
-    let to = (String::from("to"), Value::String(String::from("to")));
-
-    let data = vec![id, reason, created_at, from, to];
-    let (sender, _) = mpsc::channel();
-    let database_url = env::var("DATABASE_URL_ACCOOUNT").expect("DATABASE_URL_ACCOOUNT must be set");
-    let pool = db::connect(&database_url);
-    handle_cmt(&data[..], &pool.get().unwrap(), &sender);
-
-    Outcome::from(req, String::from("data"))
+#[get("/cac")]
+fn cac(conn: DbConn, sender: State<JobSender>) -> Json<String> {
+    Json(String::from("acc"))
 }
 
-fn launch_rocket(p: Pool) {
-    let rocket = rocket::ignite();
-
-    let get_cmt = Route::new(Get, "/", cmt);
-    let get_cac = Route::new(Get, "/", cac);
-    let rocket = rocket.mount("/cac", vec![get_cac]).mount("/cmt", vec![get_cmt]);
-
-    let rocket = rocket.manage(p);
-    log::set_max_level(log::LevelFilter::max());
-    error!("Launch error {:#?}", rocket.launch());
+#[get("/cmt")]
+fn cmt(conn: DbConn, sender: State<JobSender>) -> Json<String> {
+    Json(String::from("acc"))
 }
 
-#[macro_use]
-extern crate diesel_migrations;
+// https://github.com/SergioBenitez/Rocket/issues/714
+use rocket::State;
+use std::ops::Deref;
+struct JobSender(SyncSender<ProducerData>);
+impl Deref for JobSender {
+    type Target = mpsc::SyncSender<ProducerData>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 embed_migrations!("./migrations");
-
 #[allow(unused_imports)]
 mod migrations {
     embed_migrations!();
@@ -234,23 +225,38 @@ mod migrations {
     }
 }
 
+fn launch_rocket(tx: &SyncSender<ProducerData>, p: &Pool) {
+    migrations::run_migrations(p.clone());
+    let config = Config::build(Environment::Development)
+        .address("127.0.0.1")
+        .port(8072)
+        .workers(8)
+        .log_level(LoggingLevel::Normal)
+        .unwrap();
+
+    let rocket = rocket::custom(config);
+    let rocket = rocket.mount("/v1", routes![cac, cmt]);
+    log::set_max_level(log::LevelFilter::max());
+    let rocket = rocket.manage(p.clone()).manage(JobSender(tx.clone()));
+    error!("Launch error {:#?}", rocket.launch());
+}
+
 fn main() {
     setup_logger(None);
     let group_id = "account";
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || send_loop(&receiver));
+    let (tx, rx) = mpsc::sync_channel(1);
+    thread::spawn(move || send_loop(&rx));
 
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL_ACCOOUNT").expect("DATABASE_URL_ACCOOUNT must be set");
-    let pool = db::connect(&database_url);
-    migrations::run_migrations(pool.clone());
-    launch_rocket(pool.clone());
+    let database_url = env::var("DATABASE_URL_TRANSACTION").expect("DATABASE_URL_TRANSACTION must be set");
+    let pool = db::init_pool(&database_url);
+    launch_rocket(&tx, &pool.clone());
 
     let cac_handle = consume(
         group_id,
         "confirm_account_creation",
         Box::from(CacContext {
-            sender: sender.clone(),
+            sender: tx.clone(),
             pool: pool.clone()
         })
     );
@@ -258,7 +264,7 @@ fn main() {
         group_id,
         "confirm_money_transfer",
         Box::from(CmtContext {
-            sender: sender.clone(),
+            sender: tx.clone(),
             pool: pool.clone()
         })
     );

@@ -3,7 +3,7 @@ use chrono::{NaiveDateTime, Utc};
 use crate::db::schema::*;
 use crate::db::util::*;
 use crate::db::DbConn;
-use avro_rs::types::Value;
+// use avro_rs::types::Value;
 use diesel::{self, prelude::*};
 
 #[derive(Debug, PartialEq, Identifiable, Queryable, Insertable, Associations, AsChangeset)]
