@@ -179,13 +179,12 @@ fn login(data: Json<LoginData>, conn: DbConn, sender: State<JobSender>) -> Json<
     let key = acc.id.clone();
 
     let id = ("id", Value::String(key.clone()));
-    let username = ("username", Value::String(acc.username.clone()));
-    let password = ("password", Value::String(acc.password.clone()));
+    let _type = ("_type", Value::String(String::from("MANUAL")));
 
     let producer_data = ProducerData {
         topic: "confirm_account_creation",
         key,
-        values: vec![id, username, password]
+        values: vec![id, _type]
     };
 
     sender.try_send(producer_data).unwrap();
@@ -260,7 +259,6 @@ fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL_TRANSACTION").expect("DATABASE_URL_TRANSACTION must be set");
     let pool = db::init_pool(&database_url);
-    launch_rocket(&tx, &pool.clone());
 
     let acc_handle = consume(
         group_id,
@@ -302,6 +300,9 @@ fn main() {
             pool: pool.clone()
         })
     );
+
+    launch_rocket(&tx.clone(), &pool.clone());
+
     acc_handle.join().expect_err("Error closing acc handler");
     acf_handle.join().expect_err("Error closing acf handler");
     mtc_handle.join().expect_err("Error closing mtc handler");

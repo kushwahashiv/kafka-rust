@@ -250,7 +250,6 @@ fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL_ACCOUNT").expect("DATABASE_URL_ACCOUNT must be set");
     let pool = db::init_pool(&database_url);
-    launch_rocket(&tx, &pool.clone());
 
     let cac_handle = consume(
         group_id,
@@ -268,6 +267,9 @@ fn main() {
             pool: pool.clone()
         })
     );
+
+    launch_rocket(&tx, &pool.clone());
+
     cac_handle.join().expect_err("Error closing cac handler");
     cmt_handle.join().expect_err("Error closing cmt handler");
 }

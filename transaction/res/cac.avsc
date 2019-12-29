@@ -8,11 +8,7 @@
             "type": "string"
         },
         {
-            "name": "username",
-            "type": "string"
-        },
-        {
-            "name": "password",
+            "name": "_type",
             "type": "string"
         }
     ]
