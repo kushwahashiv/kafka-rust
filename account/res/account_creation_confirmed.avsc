@@ -1,0 +1,22 @@
+{
+    "type": "record",
+    "name": "value_account_creation_confirmed",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "account_no",
+            "type": "string"
+        },
+        {
+            "name": "token",
+            "type": "string"
+        },
+        {
+            "name": "_type",
+            "type": "string"
+        }
+    ]
+}

@@ -75,6 +75,19 @@ fn handle_acc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSend
         (_account_type, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an account type, while that was expected")
     };
+
+    let producer_data = match cac.reason {
+        None => ProducerData {
+            topic: "account_creation_confirmed",
+            key,
+            values: vec![id, account_no, token, account_type]
+        },
+        Some(v) => ProducerData {
+            topic: "account_creation_failed",
+            key,
+            values: fail_vec(&values, v)
+        }
+    };
     // sender.send(producer_data).unwrap();
 }
 
@@ -301,13 +314,14 @@ fn main() {
         })
     );
 
-    launch_rocket(&tx.clone(), &pool.clone());
+    let api_handle = thread::spawn(move || launch_rocket(&tx.clone(), &pool.clone()));
 
     acc_handle.join().expect_err("Error closing acc handler");
     acf_handle.join().expect_err("Error closing acf handler");
     mtc_handle.join().expect_err("Error closing mtc handler");
     mtf_handle.join().expect_err("Error closing mtf handler");
     bc_handle.join().expect_err("Error closing bc handler");
+    api_handle.join().expect_err("Error closing api handler");
 }
 
 fn send_loop(receiver: &Receiver<ProducerData>) {

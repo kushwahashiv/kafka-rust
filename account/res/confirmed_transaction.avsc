@@ -1,8 +1,0 @@
-{"namespace": "sansar.account.cmt",
- "type": "record",
- "name": "confirmed_transaction",
- "fields": [
-     {"name": "id", "type": "string"},
-     {"name": "reason", "type": "string"}
- ]
-}

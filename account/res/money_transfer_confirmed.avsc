@@ -1,0 +1,10 @@
+{
+    "type": "record",
+    "name": "value_money_transfer_confirmed",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        }
+    ]
+}

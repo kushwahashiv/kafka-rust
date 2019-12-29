@@ -65,11 +65,11 @@ fn handle_cac(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<Pro
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
     };
-    let type_ = match &values[1] {
-        (_type, Value::String(v)) => v.clone(),
+    let _type = match &values[1] {
+        (_type, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an enum, while that was expected")
     };
-    let cac = db::ConfirmedAccount::get_cac(id.clone(), type_, conn);
+    let cac = db::ConfirmedAccount::get_cac(id.clone(), _type, conn);
     let key = id.clone();
     let producer_data = match cac.reason {
         None => ProducerData {
@@ -92,10 +92,15 @@ fn acc_vec(cac_values: &[(String, Value)], cac: ConfirmedAccount) -> Vec<(&'stat
         (ref _id, Value::String(ref v)) => ("id", Value::String(v.clone())),
         _ => panic!("Not an id, while that was expected")
     };
-    let token = ("token", Value::String(cac.token));
     let account_no = ("account_no", Value::String(cac.account_no));
-    let account_type = ("account_type", Value::String(cac.account_type));
-    vec![id, account_no, token, account_type]
+    let token = ("token", Value::String(cac.token));
+
+    let tp = match cac_values[1] {
+        (ref _type, Value::String(ref v)) => ("_type", Value::String(v.clone())),
+        _ => panic!("Not an enum, while that was expected")
+    };
+
+    vec![id, account_no, token, tp]
 }
 
 fn fail_vec(cac_values: &[(String, Value)], reason: String) -> Vec<(&'static str, Value)> {
@@ -268,10 +273,11 @@ fn main() {
         })
     );
 
-    launch_rocket(&tx, &pool.clone());
+    let api_handle = thread::spawn(move || launch_rocket(&tx, &pool.clone()));
 
     cac_handle.join().expect_err("Error closing cac handler");
     cmt_handle.join().expect_err("Error closing cmt handler");
+    api_handle.join().expect_err("Error closing api handler");
 }
 
 fn send_loop(receiver: &Receiver<ProducerData>) {

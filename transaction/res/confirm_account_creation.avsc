@@ -1,7 +1,7 @@
 {
-    "namespace": "sansar.account.cac",
     "type": "record",
-    "name": "account_creation_confirmed",
+    "name": "value_confirm_account_creation",
+    "namespace": "sansar.account.cac",
     "fields": [
         {
             "name": "id",

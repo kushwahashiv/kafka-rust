@@ -1,0 +1,14 @@
+{
+    "type": "record",
+    "name": "value_money_transfer_failed",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "reason",
+            "type": "string"
+        }
+    ]
+}

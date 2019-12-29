@@ -1,0 +1,30 @@
+{
+    "type": "record",
+    "name": "value_balance_changed",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "account_no",
+            "type": "string"
+        },
+        {
+            "name": "amount",
+            "type": "double"
+        },
+        {
+            "name": "changed_by",
+            "type": "string"
+        },
+        {
+            "name": "from_to",
+            "type": "string"
+        },
+        {
+            "name": "description",
+            "type": "string"
+        }
+    ]
+}

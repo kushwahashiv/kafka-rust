@@ -1,0 +1,15 @@
+{
+    "namespace": "",
+    "type": "record",
+    "name": "value_account_creation_failed",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "reason",
+            "type": "string"
+        }
+    ]
+}
