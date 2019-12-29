@@ -59,36 +59,35 @@ impl ValuesProcessor for AccContext {
 }
 
 fn handle_acc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
-    let id = match &values[0] {
+    let key = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
     };
-    let account_no = match &values[1] {
-        (_account_no, Value::String(ref v)) => v.clone(),
-        _ => panic!("Not account no, while that was expected")
-    };
+
+    let id = ("id", Value::String(key.clone()));
     let token = match &values[2] {
-        (_token, Value::String(ref v)) => v.clone(),
-        _ => panic!("Not account no, while that was expected")
+        (_token, Value::String(ref v)) => ("token", Value::String(v.clone())),
+        _ => panic!("Not token, while that was expected")
     };
-    let account_type = match &values[3] {
-        (_account_type, Value::String(ref v)) => v.clone(),
-        _ => panic!("Not an account type, while that was expected")
+    let amount = ("amount", Value::Double(200.0));
+
+    let from = match &values[1] {
+        (_from, Value::String(ref v)) => ("from", Value::String(v.clone())),
+        _ => panic!("Not from, while that was expected")
+    };
+    let to = match &values[1] {
+        (_to, Value::String(ref v)) => ("to", Value::String(v.clone())),
+        _ => panic!("Not to, while that was expected")
+    };
+    let description = ("description", Value::String(String::from("Transferred")));
+
+    let producer_data = ProducerData {
+        topic: "confirm_money_transfer",
+        key,
+        values: vec![id, token, amount, from, to, description]
     };
 
-    let producer_data = match cac.reason {
-        None => ProducerData {
-            topic: "account_creation_confirmed",
-            key,
-            values: vec![id, account_no, token, account_type]
-        },
-        Some(v) => ProducerData {
-            topic: "account_creation_failed",
-            key,
-            values: fail_vec(&values, v)
-        }
-    };
-    // sender.send(producer_data).unwrap();
+    sender.send(producer_data).unwrap();
 }
 
 struct AcfContext {
