@@ -253,7 +253,7 @@ fn launch_rocket(tx: &SyncSender<ProducerData>, p: &Pool) {
 fn main() {
     setup_logger(None);
 
-    let group_id = "account";
+    let group_id = "transaction";
     let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(move || send_loop(&rx));
 
