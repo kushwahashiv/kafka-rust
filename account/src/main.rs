@@ -248,7 +248,7 @@ fn main() {
     thread::spawn(move || send_loop(&rx));
 
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL_TRANSACTION").expect("DATABASE_URL_TRANSACTION must be set");
+    let database_url = env::var("DATABASE_URL_ACCOUNT").expect("DATABASE_URL_ACCOUNT must be set");
     let pool = db::init_pool(&database_url);
     launch_rocket(&tx, &pool.clone());
 
