@@ -1,0 +1,19 @@
+{
+    "namespace": "sansar.account.cac",
+    "type": "record",
+    "name": "account_creation_confirmed",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "username",
+            "type": "string"
+        },
+        {
+            "name": "password",
+            "type": "string"
+        }
+    ]
+}

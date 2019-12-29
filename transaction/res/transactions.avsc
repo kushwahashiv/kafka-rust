@@ -1,0 +1,15 @@
+{"namespace": "sansar.account.transactions",
+ "type": "record",
+ "name": "transactions",
+ "fields": [
+     {"name": "id", "type": "string"},
+     {"name": "account_no", "type": "string"},
+     {"name": "amount", "type": "double"},
+     {"name": "new_balance", "type": "double"},
+     {"name": "account_type", "type": "string"},
+     {"name": "changed_by", "type": "string"},
+     {"name": "from_to", "type": "string"},
+     {"name": "direction", "type": "string"},
+     {"name": "description", "type": "string"}
+ ]
+}

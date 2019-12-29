@@ -240,6 +240,7 @@ mod migrations {
 
 fn main() {
     setup_logger(None);
+    
     let group_id = "account";
     let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(move || send_loop(&rx));
@@ -249,13 +250,13 @@ fn main() {
     let pool = db::init_pool(&database_url);
     migrations::run_migrations(pool.clone());
 
-    rocket::ignite()
-        .mount("/", routes![login, transact])
-        .manage(pool.clone())
-        .manage(JobSender(tx.clone()))
-        .launch();
+    let rocket = rocket::ignite();
+    let rocket = rocket.mount("/v1", routes![login, transact]);
 
     log::set_max_level(log::LevelFilter::max());
+    let rocket = rocket.manage(pool.clone()).manage(JobSender(tx.clone()));
+
+    error!("Launch error {:#?}", rocket.launch());
 
     let acc_handle = consume(
         group_id,

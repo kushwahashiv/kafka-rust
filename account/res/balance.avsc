@@ -1,0 +1,14 @@
+{"namespace": "sansar.account.balance",
+ "type": "record",
+ "name": "balance",
+ "fields": [
+     {"name": "id", "type": "string"},
+     {"name": "account_no", "type": "string"},
+     {"name": "token", "type": "string"},
+     {"name": "account_type", "type": "string"},
+     {"name": "amount", "type": "double"},
+     {"name": "limits", "type": "double"},
+     {"name": "created_at", "type": "string"},
+     {"name": "updated_at", "type": "string"}
+ ]
+}
