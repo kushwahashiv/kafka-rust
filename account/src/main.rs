@@ -11,7 +11,6 @@ extern crate rocket;
 extern crate diesel_migrations;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
 extern crate serde_json;
 
 use dotenv::dotenv;
@@ -24,19 +23,15 @@ mod logger;
 
 use crate::db::models::{Balance, ConfirmedAccount};
 
+use crate::db::DbConn;
 use crate::db::Pool;
 use crate::kafka_consumer::{consume, ValuesProcessor};
 use crate::kafka_producer::get_producer;
 use crate::logger::setup_logger;
 use avro_rs::types::Value;
-use chrono::Utc;
-// use diesel::pg::PgConnection;
-use crate::db::DbConn;
 use log::{error, info};
 use rocket::config::{Config, Environment, LoggingLevel};
-use rocket::http::Method::*;
 use rocket_contrib::json::Json;
-use rocket_contrib::json::JsonValue;
 use schema_registry_converter::schema_registry::SubjectNameStrategy;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -83,7 +78,6 @@ fn handle_cac(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<Pro
             values: fail_vec(&values, v)
         }
     };
-
     sender.send(producer_data).unwrap();
 }
 
@@ -106,7 +100,7 @@ fn acc_vec(cac_values: &[(String, Value)], cac: ConfirmedAccount) -> Vec<(&'stat
 fn fail_vec(cac_values: &[(String, Value)], reason: String) -> Vec<(&'static str, Value)> {
     let id = match cac_values[0] {
         (ref _id, Value::String(ref v)) => ("id", Value::String(v.clone())),
-        _ => panic!("Not a fixed value of 16, while that was expected")
+        _ => panic!("Not an id, while that was expected")
     };
     vec![id, ("reason", Value::String(reason))]
 }

@@ -98,6 +98,12 @@ impl Account {
             .expect("Error saving new account")
     }
 
+    pub fn remove_account(id: String, conn: &DbConn) -> () {
+        diesel::delete(account::table.filter(account::id.eq(id)))
+            .execute(&**conn)
+            .expect("Error deleting account");
+    }
+
     pub fn get_account(username: String, password: String, conn: &DbConn) -> Account {
         match Account::find_account_by_username(&username, conn) {
             Some(v) => v,

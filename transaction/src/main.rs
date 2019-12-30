@@ -11,7 +11,6 @@ extern crate rocket;
 extern crate diesel_migrations;
 #[macro_use]
 extern crate serde_derive;
-// #[macro_use]
 extern crate serde_json;
 
 use dotenv::dotenv;
@@ -22,14 +21,13 @@ mod kafka_consumer;
 mod kafka_producer;
 mod logger;
 
-use crate::db::models::{Account, Transactions};
+use crate::db::models::Account;
 
 use crate::db::Pool;
 use crate::kafka_consumer::{consume, ValuesProcessor};
 use crate::kafka_producer::get_producer;
 use crate::logger::setup_logger;
 use avro_rs::types::Value;
-// use chrono::Utc;
 use db::DbConn;
 use diesel::pg::PgConnection;
 use log::{error, info};
@@ -54,7 +52,7 @@ struct AccContext {
 
 impl ValuesProcessor for AccContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_acc(values, &self.pool.get().unwrap(), &self.sender)
+        handle_acc(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
@@ -65,17 +63,17 @@ fn handle_acc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSend
     };
 
     let id = ("id", Value::String(key.clone()));
-    let token = match &values[2] {
+    let token = match &values[1] {
         (_token, Value::String(ref v)) => ("token", Value::String(v.clone())),
         _ => panic!("Not token, while that was expected")
     };
     let amount = ("amount", Value::Double(200.0));
 
-    let from = match &values[1] {
+    let from = match &values[2] {
         (_from, Value::String(ref v)) => ("from", Value::String(v.clone())),
         _ => panic!("Not from, while that was expected")
     };
-    let to = match &values[1] {
+    let to = match &values[3] {
         (_to, Value::String(ref v)) => ("to", Value::String(v.clone())),
         _ => panic!("Not to, while that was expected")
     };
@@ -97,16 +95,24 @@ struct AcfContext {
 
 impl ValuesProcessor for AcfContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_acf(values, &self.pool.get().unwrap(), &self.sender)
+        handle_acf(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
-fn handle_acf(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+fn handle_acf(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
     };
-    // sender.send(producer_data).unwrap();
+
+    let reason = match &values[1] {
+        (_reason, Value::String(ref v)) => v.clone(),
+        _ => panic!("Not an reason, while that was expected")
+    };
+
+    if reason.is_empty() {
+        db::Account::remove_account(id.clone(), conn);
+    }
 }
 
 struct MtcContext {
@@ -116,11 +122,11 @@ struct MtcContext {
 
 impl ValuesProcessor for MtcContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_mtc(values, &self.pool.get().unwrap(), &self.sender)
+        handle_mtc(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
-fn handle_mtc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+fn handle_mtc(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
@@ -135,11 +141,11 @@ struct MtfContext {
 
 impl ValuesProcessor for MtfContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_mtc(values, &self.pool.get().unwrap(), &self.sender)
+        handle_mtf(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
-fn handle_mtf(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+fn handle_mtf(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
@@ -154,11 +160,11 @@ struct BcContext {
 
 impl ValuesProcessor for BcContext {
     fn process(&mut self, values: &[(String, Value)]) {
-        handle_bc(values, &self.pool.get().unwrap(), &self.sender)
+        handle_bc(values, &DbConn(self.pool.get().unwrap()), &self.sender)
     }
 }
 
-fn handle_bc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSender<ProducerData>) {
+fn handle_bc(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<ProducerData>) {
     let id = match &values[0] {
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
