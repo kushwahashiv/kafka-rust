@@ -62,30 +62,30 @@ fn handle_acc(values: &[(String, Value)], conn: &PgConnection, sender: &SyncSend
         _ => panic!("Not an id, while that was expected")
     };
 
-    let id = ("id", Value::String(key.clone()));
-    let token = match &values[1] {
+    let account_no = match &values[1] {
+        (_account_no, Value::String(ref v)) => ("account_no", Value::String(v.clone())),
+        _ => panic!("Not an account_no, while that was expected")
+    };
+
+    let token = match &values[2] {
         (_token, Value::String(ref v)) => ("token", Value::String(v.clone())),
         _ => panic!("Not token, while that was expected")
     };
-    let amount = ("amount", Value::Double(200.0));
 
-    let from = match &values[2] {
-        (_from, Value::String(ref v)) => ("from", Value::String(v.clone())),
-        _ => panic!("Not from, while that was expected")
+    let reason = match &values[3] {
+        (_reason, Value::String(ref v)) => ("reason", Value::String(v.clone())),
+        _ => panic!("Not reason, while that was expected")
     };
-    let to = match &values[3] {
-        (_to, Value::String(ref v)) => ("to", Value::String(v.clone())),
-        _ => panic!("Not to, while that was expected")
-    };
-    let description = ("description", Value::String(String::from("Transferred")));
 
+    /*
     let producer_data = ProducerData {
         topic: "confirm_money_transfer",
         key,
-        values: vec![id, token, amount, from, to, description]
+        values: vec![account_no, token, reason]
     };
 
     sender.send(producer_data).unwrap();
+    */
 }
 
 struct AcfContext {

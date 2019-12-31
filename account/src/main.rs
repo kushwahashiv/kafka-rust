@@ -91,7 +91,7 @@ fn acc_vec(cac_values: &[(String, Value)], cac: ConfirmedAccount) -> Vec<(&'stat
 
     let tp = match cac_values[1] {
         (ref _type, Value::String(ref v)) => ("_type", Value::String(v.clone())),
-        _ => panic!("Not an enum, while that was expected")
+        _ => panic!("Not an type, while that was expected")
     };
 
     vec![id, account_no, token, tp]
