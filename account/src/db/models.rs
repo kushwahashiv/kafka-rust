@@ -42,11 +42,7 @@ impl Balance {
     }
 
     pub fn get_balance_by_account_no(account_no: String, conn: &DbConn) -> Option<Balance> {
-        balance::table
-            .filter(balance::account_no.eq(account_no))
-            .first::<Balance>(&**conn)
-            .optional()
-            .unwrap()
+        balance::table.filter(balance::account_no.eq(account_no)).first::<Balance>(&**conn).ok()
     }
 }
 

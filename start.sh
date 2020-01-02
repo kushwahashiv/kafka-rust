@@ -1,16 +1,14 @@
-docker-compose -f docker-cluster.yml up -d --build 
-docker-compose -f docker-bank.yml up -d --build
+# docker-compose up -d --build
+
+# docker-compose -f docker-cluster.yml up -d --build 
+# docker-compose -f docker-bank.yml up -d --build
 
 docker-compose ps
 
-confluent platform @ http://localhost:9021/
-
-topics:
-
- account_creation_confirmed
- account_creation_failed
- money_transfer_confirmed
- money_transfer_failed
- confirm_account_creation
- confirm_money_transfer
- balance_changed 
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic account_creation_confirmed
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic account_creation_failed
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic money_transfer_confirmed
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic money_transfer_failed
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic confirm_account_creation
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic confirm_money_transfer
+docker-compose exec connect kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic balance_changed

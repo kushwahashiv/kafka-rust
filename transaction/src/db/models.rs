@@ -40,6 +40,13 @@ impl Transactions {
         }
     }
 
+    pub fn insert_transaction(tx: Transactions, conn: &DbConn) -> Transactions {
+        diesel::insert_into(transactions::table)
+            .values(&tx)
+            .get_result(&**conn)
+            .expect("Error saving new transaction")
+    }
+
     pub fn find_transaction_by_id(id: &str, conn: &DbConn) -> Option<Transactions> {
         transactions::table
             .filter(transactions::id.eq(id))

@@ -21,7 +21,7 @@ mod kafka_consumer;
 mod kafka_producer;
 mod logger;
 
-use crate::db::models::Account;
+use crate::db::models::{Account, Transactions};
 
 use crate::db::Pool;
 use crate::kafka_consumer::{consume, ValuesProcessor};
@@ -169,6 +169,9 @@ fn handle_bc(values: &[(String, Value)], conn: &DbConn, sender: &SyncSender<Prod
         (_id, Value::String(ref v)) => v.clone(),
         _ => panic!("Not an id, while that was expected")
     };
+
+    // Transactions::insert_transaction()
+
     // sender.send(producer_data).unwrap();
 }
 
@@ -257,7 +260,7 @@ fn launch_rocket(tx: &SyncSender<ProducerData>, p: &Pool) {
     let config = Config::build(Environment::Development)
         .address("127.0.0.1")
         .port(8071)
-        .workers(8)
+        .workers(4)
         .log_level(LoggingLevel::Normal)
         .unwrap();
     let rocket = rocket::custom(config);

@@ -229,7 +229,7 @@ fn launch_rocket(tx: &SyncSender<ProducerData>, p: &Pool) {
     let config = Config::build(Environment::Development)
         .address("127.0.0.1")
         .port(8072)
-        .workers(8)
+        .workers(4)
         .log_level(LoggingLevel::Normal)
         .unwrap();
 
