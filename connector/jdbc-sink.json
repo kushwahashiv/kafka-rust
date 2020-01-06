@@ -1,0 +1,15 @@
+{
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "dbserver1.public.confirmed_account",
+    "table.name.format": "confirmed_account",
+    "connection.url": "jdbc:postgresql://bank-db:5432/bankdb?currentSchema=account_creation_confirmed&user=postgres&password=postgres",
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "auto.create": "false",
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "pk.fields": "id",
+    "pk.mode": "record_key"
+}

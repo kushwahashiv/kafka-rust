@@ -208,6 +208,7 @@ fn login(data: Json<LoginData>, conn: DbConn, sender: State<JobSender>) -> Json<
         values: vec![id, _type]
     };
 
+    // fetch_messages();
     sender.try_send(producer_data).unwrap();
     Json(acc)
 }
@@ -268,6 +269,85 @@ fn launch_rocket(tx: &SyncSender<ProducerData>, p: &Pool) {
     log::set_max_level(log::LevelFilter::max());
     let rocket = rocket.manage(p.clone()).manage(JobSender(tx.clone()));
     error!("Launch error {:#?}", rocket.launch());
+}
+
+fn fetch_messages() {
+    use kafka::client::{FetchPartition, KafkaClient};
+    use log::warn;
+    use schema_registry_converter::Decoder;
+
+    let mut client = KafkaClient::new(vec!["127.0.0.1:9092".to_owned()]);
+    client.load_metadata_all().unwrap();
+    let reqs = &[
+        // FetchPartition::new("account_creation_confirmed", 0, 0),
+        FetchPartition::new("confirm_money_transfer", 0, 0).with_max_bytes(1024 * 1024)
+    ];
+    let schema_registry_url = match env::var("SCHEMA_REGISTRY_URL") {
+        Ok(val) => val,
+        Err(_e) => "127.0.0.1:8081".to_string()
+    };
+    let mut decoder = Decoder::new(schema_registry_url);
+
+    let resps = client.fetch_messages(reqs).unwrap();
+    for resp in resps {
+        for t in resp.topics() {
+            for p in t.partitions() {
+                match p.data() {
+                    &Err(ref e) => println!("partition error: {}:{}: {}", t.topic(), p.partition(), e),
+                    &Ok(ref data) => {
+                        println!(
+                            "topic: {} / partition: {} / latest available message offset: {}",
+                            t.topic(),
+                            p.partition(),
+                            data.highwatermark_offset()
+                        );
+                        for msg in data.messages() {
+                            println!(
+                                "topic: {} / partition: {} / message.offset: {} / message.len: {}",
+                                t.topic(),
+                                p.partition(),
+                                msg.offset,
+                                msg.value.len()
+                            );
+                            if t.topic() == "confirm_money_transfer" {
+                                match decoder.decode(Some(msg.value)) {
+                                    Ok(v) => match v {
+                                        Value::Record(v) => handle_cmt(&v),
+                                        _ => panic!("Not a record, while only those expected")
+                                    },
+                                    Err(e) => warn!("Error decoding value of record with error: {:?}", e)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn handle_cmt(values: &[(String, Value)]) {
+    let id = match &values[0] {
+        (_id, Value::String(v)) => v.clone(),
+        _ => panic!("Not a an id, while that was expected")
+    };
+
+    let token = match &values[1] {
+        (_token, Value::String(v)) => v.clone(),
+        _ => panic!("Not a an token, while that was expected")
+    };
+
+    let amount = match &values[2] {
+        (ref _amount, Value::Double(ref v)) => v,
+        _ => panic!("Not a an amount, while that was expected")
+    };
+
+    let from = match &values[3] {
+        (_from, Value::String(v)) => v.clone(),
+        _ => panic!("Not a an from, while that was expected")
+    };
+
+    println!("id: {} / token: {} / amount: {} / from: {}", id, token, amount, from);
 }
 
 fn main() {
